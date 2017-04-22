@@ -34,62 +34,98 @@
 #include "main.h"
 #include "stm32f0xx_hal.h"
 
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void Error_Handler(void);
 
-/* USER CODE BEGIN PFP */
-/* Private function prototypes -----------------------------------------------*/
+void LED_init(void) {
+    // Initialize PC8 and PC9 for LED's
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;                                          // Enable peripheral clock to GPIOC
+    GPIOC->MODER |= GPIO_MODER_MODER8_0 | GPIO_MODER_MODER9_0;                  // Set PC8 & PC9 to outputs
+    GPIOC->OTYPER &= ~(GPIO_OTYPER_OT_8 | GPIO_OTYPER_OT_9);                    // Set to push-pull output type
+    GPIOC->OSPEEDR &= ~((GPIO_OSPEEDR_OSPEEDR8_0 | GPIO_OSPEEDR_OSPEEDR8_1) |
+                        (GPIO_OSPEEDR_OSPEEDR9_0 | GPIO_OSPEEDR_OSPEEDR9_1));   // Set to low speed
+    GPIOC->PUPDR &= ~((GPIO_PUPDR_PUPDR8_0 | GPIO_PUPDR_PUPDR8_1) |
+                      (GPIO_PUPDR_PUPDR9_0 | GPIO_PUPDR_PUPDR9_1));             // Set to no pull-up/down
+    GPIOC->ODR &= ~(GPIO_ODR_8 | GPIO_ODR_9);                                   // Shut off LED's
+}
 
-/* USER CODE END PFP */
+// Sets up the PWM and direction signals to drive the H-Bridge
+void pwm_init(void) {
+    /*
+     * ENABLE = PB8
+     * DIR A = PB10
+     * DIR B = PB11
+     */
 
-/* USER CODE BEGIN 0 */
+    // Set up a pin for H-bridge PWM output (TIMER 16 CH1)
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    
+    GPIOB->MODER |= 1 << 17;
+    GPIOB->MODER &= ~(1 << 10); //alternate
+    
+    GPIOB->AFR[1] &= ~13;
+    GPIOB->AFR[1] |= 2;
+    // Set up a few GPIO output pins for direction control
+    GPIOB->MODER |= (1 << 20) | (1 << 22);
+    GPIOB->MODER &= ~((1 << 21) | (1 << 23));
+    // Initialize one direction pin to high, the other low
+    GPIOB->BSRR |= 1 << 10;
+    GPIOB->BSRR |= 1 << 27;
+    /* Hint: These pins are processor outputs, inputs to the H-bridge
+     *       they can be ordinary 3.3v pins.
+     *       If you hook up the motor and the encoder reports you are 
+     *       running in reverse, either swap the direction pins or the
+     *       encoder pins. (we'll only be using forward speed in this lab)
+     */
 
-/* USER CODE END 0 */
+    // Set up PWM timer
+    RCC->APB2ENR |= RCC_APB2ENR_TIM16EN;
+    TIM16->CR1 = 0;                         // Clear control register
+
+    // Set output-compare CH1 to PWM1 mode and enable CCR1 preload buffer
+    TIM16->CCMR1 = (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1PE);
+    TIM16->CCER = TIM_CCER_CC1E;           // Enable capture-compare channel 1
+    TIM16->PSC = 7;                         // Run timer on 1Mhz
+    TIM16->ARR = 50;                        // PWM at 20kHz
+    TIM16->CCR1 = 0;                        // Start PWM at 0% duty cycle
+        
+    TIM16->BDTR |= TIM_BDTR_MOE;  // Set master output enable (only for timers that have complementary outputs)
+    
+    TIM16->CR1 |= TIM_CR1_CEN;              // Enable timer
+}
+
+// Set the duty cycle of the PWM, accepts (0-100)
+void pwm_setDutyCycle(uint8_t duty)
+{
+    if(duty <= 100)
+	{
+        TIM16->CCR1 = ((uint32_t)duty*TIM16->ARR)/100;  // Use linear transform to produce CCR1 value
+    }
+}
 
 int main(void)
 {
+    HAL_Init();  // Reset of all peripherals, Initializes the Flash interface and the Systick. 
+    SystemClock_Config();  // Configure the system clock 
 
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration----------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* Initialize all configured peripherals */
-
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-  /* USER CODE END WHILE */
-
-  /* USER CODE BEGIN 3 */
-
-  }
-  /* USER CODE END 3 */
-
+    //Init peripherals, blinks PC9 LED in loop as heartbeat.
+    LED_init();                             // Initialize LED's
+    pwm_init();                           // Initialize motor code 
+    
+    pwm_setDutyCycle(100);
+    
+    while(1)
+	{
+        GPIOC->ODR ^= GPIO_ODR_9;           // Toggle LED
+        HAL_Delay(1000);                     // Delay 1/8th second
+        GPIOB->BSRR |= 1 << 10;
+        GPIOB->BSRR |= 1 << 27;
+            
+        GPIOC->ODR ^= GPIO_ODR_9;           // Toggle LED
+        HAL_Delay(1000);                     // Delay 1/8th second
+        GPIOB->BSRR |= 1 << 11;
+        GPIOB->BSRR |= 1 << 26;
+    }
 }
 
 /** System Clock Configuration
@@ -174,13 +210,5 @@ void assert_failed(uint8_t* file, uint32_t line)
 }
 
 #endif
-
-/**
-  * @}
-  */ 
-
-/**
-  * @}
-*/ 
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

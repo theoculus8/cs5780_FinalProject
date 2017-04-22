@@ -1,0 +1,24 @@
+--cpu Cortex-M0
+"final_project\stm32f0xx_hal_i2c.o"
+"final_project\stm32f0xx_hal_pwr_ex.o"
+"final_project\stm32f0xx_hal_gpio.o"
+"final_project\stm32f0xx_hal_pwr.o"
+"final_project\stm32f0xx_hal_tim_ex.o"
+"final_project\stm32f0xx_hal_rcc_ex.o"
+"final_project\stm32f0xx_hal.o"
+"final_project\stm32f0xx_hal_cortex.o"
+"final_project\stm32f0xx_hal_rcc.o"
+"final_project\stm32f0xx_hal_tim.o"
+"final_project\stm32f0xx_hal_i2c_ex.o"
+"final_project\stm32f0xx_hal_flash.o"
+"final_project\stm32f0xx_hal_dma.o"
+"final_project\stm32f0xx_hal_flash_ex.o"
+"final_project\startup_stm32f072xb.o"
+"final_project\system_stm32f0xx.o"
+"final_project\stm32f0xx_it.o"
+"final_project\stm32f0xx_hal_msp.o"
+"final_project\main.o"
+--library_type=microlib --strict --scatter "Final_Project\Final_Project.sct"
+--diag_suppress=L6329 --summary_stderr --info summarysizes --map --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "Final_Project.map" -o Final_Project\Final_Project.axf
